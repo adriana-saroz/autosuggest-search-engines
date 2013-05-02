@@ -28,7 +28,7 @@ Any of the following exclude the form from being a candidate:
 
 Hypothesis testing of the algorithm  
 
-* Facebook.  
+* Facebook  
     * Use Cases that qualify:  
         * The search form in the header qualifies.  
     * Use Cases that do not qualify:
@@ -52,19 +52,48 @@ Which is why, for phase two I would enhance the above algorithm by adding a rank
 * Positive weight if the absolute position of the form is smaller than some threshold, thus indicating that the form might be part of the header of the website (most search fields are part of headers).
 
 
+FormSubmitListener.js catches the action of submitting a form, therefore the code for the detection algorithm will run inside of the notify function. If the form is detected to be a search form, an async message will be sent in order to notify the form history propotype component that a search form has been detected:
+    sendAsyncMessage("FormHistory:SearchFormDetected", data);
+
+When initializing FormHistory.prototype inside nsFormHistory.js, a listener will be added for the above message:
+    this.messageManager.addMessageListener("FormHistory:SearchFormDetected", this);
+
+The form history sqlite database that is saved locally inside of the firefox profile folder is currently used for form autocompletion. It's code cand be found in the nsFormHistory.js file. This database can be tweaked to also store the necessary information for the search engine autosuggest feature.
+
+First, I would add a column for the webiste url to the moz_formhistory table. For implementing the detection algorithm I would apply the following: If x >= y and the detection algorithm validates the form, than the form is considered to be a search form.  
+x = nr times an input was used = SELECT SUM (timesUsed) FROM moz_formhistory where fieldname = '<name>' and url = <'url'>  
+y = nr times an input should be used in order to be considered
+
+Secondly, I would add a new table to the database, moz_searchforms, that should contain an entry for every form/website that was detected. This table would be queried on page load in order to append "Add <website>" in the search bar for a form that was detected during a previous session. This table will contain columns for hostname, title, search url, search params, and any other data that is otherwise provided by the OpenSearch description xml (which is used when creating a search plugin for firefox).
+
+The changes that will be brought to the nsFormHistory.js file include:
+
+* dbSchema update: url column for moz_formhistory
+* dbSchema update: moz_searchforms table
+* adding a dbMigrateToVersion(5) function
+* necessary operations for moz_searchforms: function for adding an entry and removing entries (removal will be synchronized to the removal from the moz_formhistory table)
+* updating addEntry function to have another parameter for website url (also update insert and update sql statements)
+
+The third major change is adding a mechanism to use the data from the moz_searchforms tables instead of the data provided by open search xmls in order to generate the search plugin xmls and update search.json (the profile file that holds the list of installed search plugins)
+
+
 Schedule of Deliverables
 ------------------------
-Between the time Google announces the list of accepted students and until the final evaluation submission date, there is a work period of 17 weeks. I will be attending classes and have my thesis due by the 3rd of July, so I would be able to work about 2 hours/day until then, and full time after that as I have no other commitment.
+
+Between the time Google announces the list of accepted students and until the final evaluation submission date, there is a work period of 17 weeks. I will be attending classes and have my thesis due by the 3rd of July, so I would be able to work about 2-3 hours/day until then, and full time after that as I have no other commitment. Although this means only 11 weeks of full time work (and 6 of part time which I do not consider lost because I will be using this project as a context switch from the school work that I will be doing), I am confident that I can succesfully complete the project.
 
 I estimate my project schedule to be the following:
 
-* May 25 - June 16 (3 weeks): Getting to know the community, discussing the project details with the mentor, studying the code base.
-* June 17 - July 6 (4 weeks): Implementing the simple algorithm described for phase 1 and testing it against a larger number of websites. Also writing some simple tests to validate the algorithm. Up until this point I would be working in paralel with my thesis which is why I have reserved full 4 weeks for this part.
-* July 7 - July 28 (2 weeks): Changing the form history database structure to add the website URL and any other data that might be needed. Hooking up the form detection with the UI: adding an entry with "Add <website>" under the search engines list in the search bar.
+* May 25 - June 9 (2 weeks) Get to know the community, study the code base, discuss the project details and any design issues that might arise with the mentor.
+* June 10 - June 23 (2 weeks) Update dbSchema, implement add/update and query functionality for the new db structure.
+* June 24 - July 14 (3 weeks) Implement the simple algorithm described for phase 1 and test it against a larger number of websites. Write some simple tests to validate the algorithm. Note: Up until July 3rd I will be working in paralel with my thesis.
+* July 15 - July 21 (1 week) Hook up the form detection with the UI: append an entry with "Add <website>" under the search engines list in the search bar and any additional minor details that need to be done by midterm.
 * Mid-term deliverable: A working version of the simplified search field detection algorithm.
-* July 29 - August 18 (3 weeks): Implementing the extended algorithm described for phase 2.
-* August 19 - Sept 8 (3 weeks): Writing tests for the extended detection.
-* Sept 9 - Sept 22 (2 weeks): Code cleanup and improving documentation.
+* July 22 - Aug 4 (2 weeks) Implement and hook up mechanism to use moz_searchforms data instead of open search xml.
+* Aug 5 - Aug 18 (2 weeks) Implement the extended algorithm described for phase 2.
+* Aug 19 - Aug 25 (1 week) Implement database remove entry / clear cache functionality.
+* Aug 26 - Sept 8 (2 weeks) Write tests for the extended detection.
+* Sept 9 - Sept 22 (2 weeks) Code cleanup and improve documentation.
 
 A stretch goal in case everything works ahead of schedule is to discuss any necessary UX improvements with the mentor and proceed with implementing the discussed changes during or after GSoC.
 
